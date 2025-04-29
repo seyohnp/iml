@@ -1,0 +1,1 @@
+train_data = np.load("train_data.npz")["data"]

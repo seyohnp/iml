@@ -34,8 +34,18 @@ https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html
 # If you have a Mac consult the following link:
 # https://pytorch.org/docs/stable/notes/mps.html
 
+if torch.backends.mps.is_available():
+    device = torch.device("mps")
+elif torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
+
+print(f"Using device: {device}")
+
+
 # It is important that your model and all data are on the same device.
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def get_data(**kwargs):
@@ -73,6 +83,9 @@ def get_data(**kwargs):
     # training data) with your own implementation.
     train_data_label = train_data.clone()
     train_data_input = train_data.clone()
+
+    # Replace the center 8x8 pixels with black pixels
+    train_data_input[:, :, 10:18, 10:18] = 0
 
     # Visualize the training data if needed
     # Set to False if you don't want to save the images
@@ -114,7 +127,7 @@ def train_model(train_data_input, train_data_label, **kwargs):
 
     # TODO: Dummy criterion - change this to the correct loss function
     # https://pytorch.org/docs/stable/nn.html#loss-functions
-    criterion = lambda x, y: torch.mean((x))
+    criterion = nn.MSELoss()
     # TODO: Dummy optimizer - change this to a more suitable optimizer
     optimizer = torch.optim.SGD(model.parameters())
 
@@ -122,21 +135,23 @@ def train_model(train_data_input, train_data_label, **kwargs):
     # Also consider that you might not want to use the entire dataset for
     # training alone
     # (batch_size needs to be changed)
-    batch_size = 1
+    batch_size = 128
     dataset = TensorDataset(train_data_input, train_data_label)
     # Consider the shuffle parameter and other parameters of the DataLoader
     # class (see
     # https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader)
-    data_loader = DataLoader(dataset, batch_size=batch_size)
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # Training loop
     # TODO: Modify the training loop in case you need to
 
     # TODO: The value of n_epochs is just a placeholder and likely needs to be
     # changed
-    n_epochs = 1
+    n_epochs = 10
+    losses = []
 
     for epoch in range(n_epochs):
+        epoch_loss = 0
         for x, y in tqdm(
             data_loader, desc=f"Training Epoch {epoch}", leave=False
         ):
@@ -147,8 +162,21 @@ def train_model(train_data_input, train_data_label, **kwargs):
             loss.backward()
             optimizer.step()
 
+            epoch_loss += loss.item()
+        
+        avg_loss = epoch_loss / len(data_loader)
+        losses.append(avg_loss)
+
         print(f"Epoch {epoch} loss: {loss.item()}")
 
+    # Plot after training
+    # plt.plot(losses)
+    # plt.xlabel('Epoch')
+    # plt.ylabel('Loss')
+    # plt.title('Training Loss over Epochs')
+    # plt.grid()
+    # plt.savefig("loss_plot.png")
+    # plt.show()
     return model
 
 

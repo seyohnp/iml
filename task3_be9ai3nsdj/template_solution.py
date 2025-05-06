@@ -8,28 +8,24 @@ from torch.utils.data import DataLoader, TensorDataset
 import torch.nn as nn
 import torch.nn.functional as F
 import random
-import wandb
+#import wandb
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Start a new wandb run to track this script.
-run = wandb.init(
-    # Set the wandb entity where your project will be logged (generally your team name).
-    entity="cvaiac_LightningMcSpeed",
-    # Set the wandb project where this run will be logged.
-    project="IML_Task3",
-    # Track hyperparameters and run metadata.
-    config={
-        "learning_rate": 0.001,
-        "architecture": "CNN",
-        "dataset": "MNIST",
-        "epochs": 50,
-    },
-)
-
-
-
-
+# run = wandb.init(
+#     # Set the wandb entity where your project will be logged (generally your team name).
+#     entity="cvaiac_LightningMcSpeed",
+#     # Set the wandb project where this run will be logged.
+#     project="IML_Task3",
+#     # Track hyperparameters and run metadata.
+#     config={
+#         "learning_rate": 0.001,
+#         "architecture": "CNN",
+#         "dataset": "MNIST",
+#         "epochs": 50,
+#     },
+# )
 
 
 
@@ -81,13 +77,13 @@ def get_data(**kwargs):
     H is the height of the image, and W is the width of the image.
     """
     # Load the training data
-    train_data = np.load("C:/Users/jagoi/Documents/ETH/Master-2_FS25/Intro_to_ML/Exercises/task3_be9ai3nsdj/train_data.npz")["data"]
+    train_data = np.load("train_data.npz")["data"]
 
     # Make the training data a tensor
     train_data = torch.tensor(train_data, dtype=torch.float32)
 
     # Load the test data
-    test_data_input = np.load("C:/Users/jagoi/Documents/ETH/Master-2_FS25/Intro_to_ML/Exercises/task3_be9ai3nsdj/test_data.npz")["data"]
+    test_data_input = np.load("test_data.npz")["data"]
 
     # Make the test data a tensor
     test_data_input = torch.tensor(test_data_input, dtype=torch.float32)
@@ -205,7 +201,7 @@ def train_model(train_data_input, train_data_label, **kwargs):
         
         
         # Log metrics to wandb.
-        run.log({"val_loss": val_loss, "loss": train_loss_item})
+        #run.log({"val_loss": val_loss, "loss": train_loss_item})
 
     return model
 

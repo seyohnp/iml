@@ -7,6 +7,31 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn as nn
 import torch.nn.functional as F
+import random
+import wandb
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# Start a new wandb run to track this script.
+run = wandb.init(
+    # Set the wandb entity where your project will be logged (generally your team name).
+    entity="cvaiac_LightningMcSpeed",
+    # Set the wandb project where this run will be logged.
+    project="IML_Task3",
+    # Track hyperparameters and run metadata.
+    config={
+        "learning_rate": 0.001,
+        "architecture": "CNN",
+        "dataset": "MNIST",
+        "epochs": 50,
+    },
+)
+
+
+
+
+
+
 
 """
 README FIRST
@@ -34,19 +59,10 @@ https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html
 # If you have a Mac consult the following link:
 # https://pytorch.org/docs/stable/notes/mps.html
 
-if torch.backends.mps.is_available():
-    device = torch.device("mps")
-elif torch.cuda.is_available():
-    device = torch.device("cuda")
-else:
-    device = torch.device("cpu")
-
-print(f"Using device: {device}")
-
-
 # It is important that your model and all data are on the same device.
-# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+print("FROOOOOOOOOOOOOOGS")
 
 def get_data(**kwargs):
     """
@@ -65,13 +81,13 @@ def get_data(**kwargs):
     H is the height of the image, and W is the width of the image.
     """
     # Load the training data
-    train_data = np.load("train_data.npz")["data"]
+    train_data = np.load("C:/Users/jagoi/Documents/ETH/Master-2_FS25/Intro_to_ML/Exercises/task3_be9ai3nsdj/train_data.npz")["data"]
 
     # Make the training data a tensor
     train_data = torch.tensor(train_data, dtype=torch.float32)
 
     # Load the test data
-    test_data_input = np.load("test_data.npz")["data"]
+    test_data_input = np.load("C:/Users/jagoi/Documents/ETH/Master-2_FS25/Intro_to_ML/Exercises/task3_be9ai3nsdj/test_data.npz")["data"]
 
     # Make the test data a tensor
     test_data_input = torch.tensor(test_data_input, dtype=torch.float32)
@@ -81,11 +97,15 @@ def get_data(**kwargs):
     # label images to train your model. 
     # Replace the two placholder lines below (which currently just copy the
     # training data) with your own implementation.
+    # img is torch.Size([60000, 1, 28, 28]) 
+    # to set the center 8x8 pixels to black, i.e. mask them -> image[10:18, 10:18] = 0
     train_data_label = train_data.clone()
     train_data_input = train_data.clone()
-
-    # Replace the center 8x8 pixels with black pixels
     train_data_input[:, :, 10:18, 10:18] = 0
+
+    #print(train_data_input.shape)
+    #dprint(train_data_input)
+
 
     # Visualize the training data if needed
     # Set to False if you don't want to save the images
@@ -96,11 +116,11 @@ def get_data(**kwargs):
         for i in tqdm(range(20), desc="Plotting train images"):
             # Show the training and the target image side by side
             plt.subplot(1, 2, 1)
-            plt.imshow(train_data_input[i].squeeze(), cmap="gray")
+            plt.imshow(train_data_input[i].squeeze().cpu().numpy(), cmap="gray")
             plt.title("Training Input")
             plt.subplot(1, 2, 2)
             plt.title("Training Label")
-            plt.imshow(train_data_label[i].squeeze(), cmap="gray")
+            plt.imshow(train_data_label[i].squeeze().cpu().numpy(), cmap="gray")
 
             plt.savefig(f"train_image_output/image_{i}.png")
             plt.close()
@@ -127,33 +147,39 @@ def train_model(train_data_input, train_data_label, **kwargs):
 
     # TODO: Dummy criterion - change this to the correct loss function
     # https://pytorch.org/docs/stable/nn.html#loss-functions
+    #criterion = lambda x, y: torch.mean((x))
     criterion = nn.MSELoss()
     # TODO: Dummy optimizer - change this to a more suitable optimizer
-    optimizer = torch.optim.SGD(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     # TODO: Correctly setup the dataloader - the below is just a placeholder
     # Also consider that you might not want to use the entire dataset for
     # training alone
     # (batch_size needs to be changed)
-    batch_size = 128
-    dataset = TensorDataset(train_data_input, train_data_label)
+    batch_size = 100
+    full_dataset = TensorDataset(train_data_input, train_data_label)
+
+    train_size = int(0.8 * len(full_dataset))
+    val_size = len(full_dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(full_dataset, [train_size, val_size])
     # Consider the shuffle parameter and other parameters of the DataLoader
     # class (see
     # https://pytorch.org/docs/stable/data.html#torch.utils.data.DataLoader)
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
     # Training loop
     # TODO: Modify the training loop in case you need to
 
     # TODO: The value of n_epochs is just a placeholder and likely needs to be
     # changed
-    n_epochs = 10
-    losses = []
+    n_epochs = 50
 
     for epoch in range(n_epochs):
-        epoch_loss = 0
+        
+        #training loop
         for x, y in tqdm(
-            data_loader, desc=f"Training Epoch {epoch}", leave=False
+            train_loader, desc=f"Training Epoch {epoch}", leave=False
         ):
             x, y = x.to(device), y.to(device)
             optimizer.zero_grad()
@@ -161,22 +187,26 @@ def train_model(train_data_input, train_data_label, **kwargs):
             loss = criterion(output, y)
             loss.backward()
             optimizer.step()
-
-            epoch_loss += loss.item()
+        train_loss_item = loss.item()
         
-        avg_loss = epoch_loss / len(data_loader)
-        losses.append(avg_loss)
+        print(f"Epoch {epoch} loss: {train_loss_item}")
 
-        print(f"Epoch {epoch} loss: {loss.item()}")
+        
+        #validation loop
+        val_loss = 0
+        for x, y in tqdm(val_loader, desc=f"Validation Epoch {epoch}", leave=False):
+            x, y = x.to(device), y.to(device)
+            with torch.no_grad():
+                output = model(x)
+                loss = criterion(output, y)
+                val_loss += loss.item()
+        val_loss /= len(val_loader)
+        print(f"Epoch {epoch} validation loss: {val_loss}")
+        
+        
+        # Log metrics to wandb.
+        run.log({"val_loss": val_loss, "loss": train_loss_item})
 
-    # Plot after training
-    # plt.plot(losses)
-    # plt.xlabel('Epoch')
-    # plt.ylabel('Loss')
-    # plt.title('Training Loss over Epochs')
-    # plt.grid()
-    # plt.savefig("loss_plot.png")
-    # plt.show()
     return model
 
 
@@ -192,7 +222,36 @@ class Model(nn.Module):
         The constructor of the model.
         """
         super().__init__()
-        self.fc = nn.Linear(784, 784)
+
+
+        #Encoder
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=4, stride=1, padding=1) #27x27x16 
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0) #13x13x16
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=1, padding=1) #12x12x32
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0) #6x6x32
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=4, stride=1, padding=1) #5x5x64
+
+        
+        #Bottleneck
+        self.bottleneck = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(5 * 5 * 64, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, 5 * 5 * 64),
+            nn.Unflatten(1, (64, 5, 5))
+        )
+
+
+        # Decoder
+        self.dec1 = nn.ConvTranspose2d(64 + 64, 32, kernel_size=3, stride=2, padding=0, output_padding=1)
+        self.dec2 = nn.ConvTranspose2d(32 + 32, 16, kernel_size=3, stride=2, padding=0, output_padding=1)
+        self.dec3 = nn.ConvTranspose2d(16, 1, kernel_size=3, stride=1, padding=0)
+
+
+
+
 
     def forward(self, x):
         """
@@ -202,12 +261,30 @@ class Model(nn.Module):
 
         output: x: torch.Tensor, the output of the model
         """
-        # Flatten the image in the last two dimensions
-        x = x.view(x.shape[0], -1)
-        x = self.fc(x)
-        x = F.relu(x)
-        # Reshape the image to the original shape
-        x = x.view(x.shape[0], 1, 28, 28)
+
+        # Encoder
+        x1 = F.relu(self.conv1(x)) #27x27x16
+        
+        x2 = self.pool1(x1)
+        x2 = F.relu(self.conv2(x2)) #12x12x32
+
+        x3 = self.pool2(x2)
+        x3 = F.relu(self.conv3(x3)) #5x5x64
+
+
+        # Bottleneck
+        x = self.bottleneck(x3) #5x5x64
+
+
+        # Decoder
+        x = torch.cat((x, x3), dim=1) #5x5x96
+        x = F.relu(self.dec1(x)) #12x12x32
+
+        x = torch.cat((x, x2), dim=1) #12x12x64
+        x = F.relu(self.dec2(x)) #27x27x16
+
+        x = self.dec3(x) #28x28x1
+
         return x
 
 
